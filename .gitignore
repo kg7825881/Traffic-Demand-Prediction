@@ -1,5 +1,11 @@
 .venv/
 __pycache__/
 catboost_info/
-*.csv
 .DS_Store
+
+# 1. Ignore all CSV files globally
+*.csv
+
+# 2. Force Git to track your specific submission folder and its CSV files
+!Submissions_made/
+!Submissions_made/*.csv
