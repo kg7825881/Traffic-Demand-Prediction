@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import os
 
 def clean_and_encode(input_filename, output_filename, is_train=True):
@@ -9,23 +10,59 @@ def clean_and_encode(input_filename, output_filename, is_train=True):
     print(f"📖 Loading {input_filename}...")
     df = pd.read_csv(input_filename)
 
-    # 1. Identify Categorical & Numeric columns based on description
-    cat_cols = ['RoadType', 'LargeVehicles', 'Landmarks', 'Weather', 'day']
-    num_cols = ['NumberOfLanes', 'Temperature', 'latitude', 'longitude', 'hour', 'minute', 'hour_sin', 'hour_cos']
+    # ==========================================
+    # 1. TEMPORAL FEATURE EXTRACTION
+    # ==========================================
+    print("⏰ Processing temporal properties...")
+    df['timestamp_dt'] = pd.to_datetime(df['timestamp'], format='%H:%M', errors='coerce')
+    df['hour'] = df['timestamp_dt'].dt.hour
+    df['minute'] = df['timestamp_dt'].dt.minute
+    df = df.drop(columns=['timestamp_dt'])
     
-    print("🧹 Handling missing values and casting types...")
-    # Fill categorical missing values with a baseline placeholder string
+    if df['hour'].isnull().all():
+        df['hour'] = pd.to_numeric(df['timestamp'], errors='coerce').astype(float).fillna(0).astype(int)
+        df['minute'] = 0
+
+    df['hour_sin'] = np.sin(2 * np.pi * df['hour'] / 24.0)
+    df['hour_cos'] = np.cos(2 * np.pi * df['hour'] / 24.0)
+
+    # ==========================================
+    # 2. TRAFFIC INTERACTION FEATURES
+    # ==========================================
+    print("🛠️ Engineering domain-specific traffic features...")
+    
+    df['is_rush_hour'] = (((df['hour'] >= 8) & (df['hour'] <= 11)) | 
+                          ((df['hour'] >= 17) & (df['hour'] <= 20))).astype(int)
+    
+    # Force string construction to ensure it combines as text cleanly
+    df['road_capacity_index'] = df['RoadType'].astype(str) + "_" + df['NumberofLanes'].astype(str)
+    
+    weather_map = {
+        'Clear': 1, 'Sunny': 1,
+        'Cloudy': 2, 'Haze': 2, 'Mist': 2,
+        'Rain': 3, 'Drizzle': 3,
+        'Heavy Rain': 4, 'Storm': 4, 'Thunderstorm': 4
+    }
+    df['weather_severity'] = df['Weather'].map(weather_map).fillna(2).astype(int)
+
+    # ==========================================
+    # 3. STRICT TYPE CASTING & CLEANING
+    # ==========================================
+    cat_cols = ['RoadType', 'LargeVehicles', 'Landmarks', 'Weather', 'day', 'road_capacity_index']
+    num_cols = ['NumberofLanes', 'Temperature', 'latitude', 'longitude', 'hour', 'minute', 
+                'hour_sin', 'hour_cos', 'is_rush_hour', 'weather_severity']
+    
+    print("🧹 Handling missing values and explicitly casting types...")
+    # Explicit conversion loop to guarantee categorical formatting passes to CSV
     for col in cat_cols:
         if col in df.columns:
             df[col] = df[col].fillna('Missing').astype(str).astype('category')
 
-    # Fill numerical missing values with median (computed safely per column)
     for col in num_cols:
         if col in df.columns:
             df[col] = df[col].fillna(df[col].median())
 
-    # 2. Select final features for the model
-    # Drop columns we have fully engineered away or don't need for learning
+    # Final drop of raw non-numeric columns
     cols_to_drop = ['geohash', 'timestamp']
     df = df.drop(columns=[c for c in cols_to_drop if c in df.columns], errors='ignore')
 
@@ -34,10 +71,7 @@ def clean_and_encode(input_filename, output_filename, is_train=True):
     print(f"✅ Created {output_filename} successfully!\n")
 
 if __name__ == "__main__":
-    print("🚀 Launching Final Data Preparation Step...\n")
-    
-    # Process both datasets based on our spatiotemporal files
-    clean_and_encode('train_spatiotemporal.csv', 'train_final.csv', is_train=True)
-    clean_and_encode('test_spatiotemporal.csv', 'test_final.csv', is_train=False)
-    
-    print("🎉 All datasets are fully engineered, cleaned, and ready for modeling!")
+    print("🚀 Launching Data Prep Pipeline...\n")
+    clean_and_encode('train_spatial.csv', 'train_final.csv', is_train=True)
+    clean_and_encode('test_spatial.csv', 'test_final.csv', is_train=False)
+    print("🎉 All datasets are fully engineered and aligned successfully!")
