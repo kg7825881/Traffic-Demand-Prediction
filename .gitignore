@@ -1,0 +1,27 @@
+# Virtual environment
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# Generated datasets
+train_spatial.csv
+test_spatial.csv
+train_spatiotemporal.csv
+test_spatiotemporal.csv
+train_final.csv
+test_final.csv
+
+# Experiment artifacts
+experiments/**/train.csv
+experiments/**/test.csv
+experiments/**/submission*.csv
+experiments/**/feature_importance*.csv
+
+# Models
+experiments/**/models/
+experiments/**/catboost_info/
+
+# Logs
+*.log
